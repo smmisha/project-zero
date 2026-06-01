@@ -99,3 +99,45 @@ def get_summary_stats(hotspots: List[dict], all_churn: Dict[str, int], all_compl
         "top_file": hotspots[0]["file"] if hotspots else None,
         "top_score": hotspots[0]["score"] if hotspots else 0,
     }
+
+
+def compute_risk_index(hotspots: List[dict]) -> dict:
+    """
+    Compute a repo-level risk index for cross-repo comparison.
+
+    The index aggregates how much risk is concentrated in a codebase:
+        risk_index = sum(score² / 100) over all hotspots
+
+    Squaring rewards a few very-high-risk files over many medium ones,
+    matching the intuition that one score-95 file is worse than five
+    score-40 files. Also reports per-tier counts and the share of files
+    that are knowledge silos (bus factor == 1).
+    """
+    if not hotspots:
+        return {
+            "risk_index": 0.0,
+            "critical": 0,
+            "high": 0,
+            "medium": 0,
+            "silo_count": 0,
+            "silo_ratio": 0.0,
+            "top_file": None,
+            "top_score": 0.0,
+        }
+
+    critical = sum(1 for h in hotspots if h["score"] >= 75)
+    high = sum(1 for h in hotspots if 50 <= h["score"] < 75)
+    medium = sum(1 for h in hotspots if 25 <= h["score"] < 50)
+    silos = [h for h in hotspots if h.get("bus_factor", 0) == 1]
+    risk_index = sum((h["score"] ** 2) / 100 for h in hotspots)
+
+    return {
+        "risk_index": round(risk_index, 1),
+        "critical": critical,
+        "high": high,
+        "medium": medium,
+        "silo_count": len(silos),
+        "silo_ratio": round(len(silos) / len(hotspots), 2),
+        "top_file": hotspots[0]["file"],
+        "top_score": hotspots[0]["score"],
+    }

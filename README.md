@@ -33,6 +33,9 @@ python main.py
 # Analyze a specific repo
 python main.py /path/to/repo
 
+# Compare multiple repos side by side (portfolio mode)
+python main.py service-a service-b service-c
+
 # Last 30 days, top 20 files, save HTML report
 python main.py --days 30 --top 20 --html report.html
 
@@ -42,6 +45,31 @@ python main.py --no-todos
 # JSON output for scripting
 python main.py --json | jq '.hotspots[0:3]'
 ```
+
+## Portfolio mode (multiple repos)
+
+Pass more than one repository path to compare them and find which codebase
+carries the most risk:
+
+```bash
+python main.py ~/work/api ~/work/web ~/work/worker --days 180
+```
+
+```
+Risk Ranking  (most → least risky)
+ #  Repository   RiskIdx  Crit  High  Silos  Commits  Top Hotspot
+ 1  api             897.9     7     8     12      255  app/handlers.py (100)
+ 2  web             544.2     1    12      1      644  src/core.js (100)
+```
+
+| Column | Meaning |
+|--------|---------|
+| RiskIdx | Repo-level risk index — `Σ(score² / 100)` over hotspots. Concentrated, severe risk scores higher than many mild files. |
+| Crit / High | Number of critical (≥75) and high (≥50) hotspot files |
+| Silos | Files with bus factor 1 — only one author understands them |
+
+Add `--compact` to show only the ranking table, or `--json` to get the full
+comparison as structured data. `--html` applies to single-repo mode only.
 
 ## Install
 

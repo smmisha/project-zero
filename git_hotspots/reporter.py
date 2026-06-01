@@ -168,6 +168,101 @@ def print_commit_heatmap(heatmap: Dict[str, int], days: int) -> None:
     print()
 
 
+# ── Multi-repo comparison ───────────────────────────────────────────────────
+
+def print_multi_repo_header(repo_count: int, days: int) -> None:
+    width = 72
+    print()
+    print(f"{BOLD}{CYAN}{'━' * width}{RESET}")
+    print(f"{BOLD}{CYAN}  git-hotspots{RESET}  — Portfolio Risk Comparison")
+    print(f"{CYAN}{'━' * width}{RESET}")
+    print(f"  Repositories : {BOLD}{repo_count}{RESET}  ·  "
+          f"last {BOLD}{days} days{RESET}  ·  {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    print(f"{CYAN}{'━' * width}{RESET}")
+    print()
+
+
+def _color_risk_index(value: float, max_value: float) -> str:
+    """Color a risk index relative to the worst repo in the set."""
+    ratio = (value / max_value) if max_value else 0
+    if ratio >= 0.66:
+        return f"{BOLD}{RED}{value:>8.1f}{RESET}"
+    elif ratio >= 0.33:
+        return f"{BOLD}{YELLOW}{value:>8.1f}{RESET}"
+    else:
+        return f"{GREEN}{value:>8.1f}{RESET}"
+
+
+def print_repo_comparison(results: List[dict]) -> None:
+    """
+    Print a ranked comparison table across repositories.
+
+    `results` is a list of dicts each containing:
+        name, risk (from compute_risk_index), commits, files_measured
+    sorted by risk_index descending.
+    """
+    if not results:
+        print(f"{YELLOW}No repositories produced any data.{RESET}")
+        return
+
+    ranked = sorted(results, key=lambda r: r["risk"]["risk_index"], reverse=True)
+    max_index = ranked[0]["risk"]["risk_index"] or 1
+
+    name_w = min(28, max((len(r["name"]) for r in ranked), default=10))
+    name_w = max(name_w, 10)
+
+    print(f"{BOLD}Risk Ranking  (most → least risky){RESET}")
+    print(f"{DIM}{'#':>2}  {'Repository':<{name_w}}  {'RiskIdx':>8}  "
+          f"{'Crit':>4}  {'High':>4}  {'Silos':>5}  {'Commits':>7}  {'Top Hotspot'}{RESET}")
+    print(f"{DIM}{'─'*2}  {'─'*name_w}  {'─'*8}  {'─'*4}  {'─'*4}  {'─'*5}  {'─'*7}  {'─'*30}{RESET}")
+
+    for i, r in enumerate(ranked, 1):
+        risk = r["risk"]
+        idx_str = _color_risk_index(risk["risk_index"], max_index)
+        crit = risk["critical"]
+        crit_str = f"{BOLD}{RED}{crit:>4}{RESET}" if crit else f"{DIM}{crit:>4}{RESET}"
+        high = risk["high"]
+        high_str = f"{YELLOW}{high:>4}{RESET}" if high else f"{DIM}{high:>4}{RESET}"
+        silos = risk["silo_count"]
+        silo_str = f"{RED}{silos:>5}{RESET}" if silos else f"{DIM}{silos:>5}{RESET}"
+        name = r["name"][:name_w]
+        top_file = risk["top_file"] or "—"
+        top_display = _shorten(top_file, 28)
+        top_score = risk["top_score"]
+        print(
+            f"{i:>2}  {BOLD}{name:<{name_w}}{RESET}  {idx_str}  {crit_str}  {high_str}  "
+            f"{silo_str}  {r['commits']:>7}  {top_display} ({top_score:.0f})"
+        )
+    print()
+
+    # Portfolio summary line
+    total_crit = sum(r["risk"]["critical"] for r in ranked)
+    total_silos = sum(r["risk"]["silo_count"] for r in ranked)
+    worst = ranked[0]
+    print(f"{BOLD}Portfolio Summary{RESET}")
+    print(f"  Riskiest repo       : {BOLD}{RED}{worst['name']}{RESET} "
+          f"(risk index {worst['risk']['risk_index']:.1f})")
+    print(f"  Total critical files: {BOLD}{RED}{total_crit}{RESET}")
+    print(f"  Total knowledge silos: {BOLD}{total_silos}{RESET} "
+          f"{DIM}(files only one person understands){RESET}")
+    print()
+
+
+def print_compact_hotspots(name: str, hotspots: List[dict], limit: int = 5) -> None:
+    """Per-repo compact top-N list used in multi-repo mode."""
+    print(f"{BOLD}{CYAN}▸ {name}{RESET}")
+    if not hotspots:
+        print(f"  {GREEN}No hotspots.{RESET}")
+        print()
+        return
+    for i, h in enumerate(hotspots[:limit], 1):
+        score_str = _color_score(h["score"])
+        file_display = _shorten(h["file"], 50)
+        print(f"  {i}. {score_str}  {file_display}  "
+              f"{DIM}(churn {h['churn']}, cmplx {h['complexity']:.0f}, bus {h['bus_factor']}){RESET}")
+    print()
+
+
 # ── HTML Report ────────────────────────────────────────────────────────────
 
 def generate_html_report(
