@@ -598,10 +598,8 @@
                 params.append('language', formData.get('language'));
                 
                 try {
-                    // Use relative path for API (works with Cloudflare Pages + external API)
-                    const apiUrl = window.location.hostname.includes('localhost') 
-                        ? `http://localhost:8000/search?${params.toString()}`
-                        : `https://medexplainer-api.example.com/search?${params.toString()}`;
+                    // Use Cloudflare Pages Functions for API
+                    const apiUrl = `/api/search?${params.toString()}`;
                     const response = await fetch(apiUrl);
                     
                     if (!response.ok) {

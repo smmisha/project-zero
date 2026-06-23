@@ -1,21 +1,21 @@
-name = "medexplainer"
-main = "functions/api/main.py"
-compatibility_date = "2024-01-01"
+# Cloudflare Pages configuration
+# For MedExplainer static site + Functions
 
-# For Cloudflare Pages
-pages_build_output_dir = "public"
+# This is for Cloudflare Pages - no need for wrangler.toml actually
+# Just place this in your project root for reference
 
-[vars]
-PUBMED_EMAIL = "@secrets.PUBMED_EMAIL"
+# Static files are served from public/
+# Functions are in functions/
 
-# For Workers
-[build]
-command = "pip install -r requirements-prod.txt"
+# To deploy:
+# 1. Go to Cloudflare Dashboard > Pages
+# 2. Create a new project
+# 3. Connect your GitHub repository
+# 4. Set project name: medexplainer
+# 5. Set production branch: main (or vibe/medexplainer-747139)
+# 6. Set build command: (leave empty)
+# 7. Set build output directory: medexplainer/public
+# 8. Add environment variables if needed
 
-[build.upload]
-format = "modules"
-main = "./functions"
-
-[[r2_buckets]]
-binding = "PUBLIC_BUCKET"
-bucket_name = "medexplainer-assets"
+# For local testing with wrangler (optional):
+# wrangler pages dev medexplainer/public --local
