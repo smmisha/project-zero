@@ -1,0 +1,27 @@
+# Cloudflare Pages configuration for MedExplainer
+# This file is for reference only - configure these settings in the Cloudflare Dashboard
+
+# Build settings
+build:
+  command: ""
+  watch:
+    patterns:
+      - "public/**/*"
+
+# Deploy settings  
+deploy:
+  command: ""
+  watch:
+    patterns:
+      - "public/**/*"
+
+# Environment variables (set in Cloudflare Dashboard)
+environment:
+  - key: API_URL
+    value: "https://your-api-service.example.com"
+
+# Redirects (optional)
+redirects:
+  - from: "/api/*"
+    to: "$API_URL/:splat"
+    status: 307
