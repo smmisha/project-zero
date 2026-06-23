@@ -1,0 +1,18 @@
+{
+  "build": {
+    "command": "pip install -r requirements.txt",
+    "watch": {
+      "patterns": ["*.py"]
+    }
+  },
+  "deploy": {
+    "command": "python server.py",
+    "watch": {
+      "patterns": ["*.py"]
+    }
+  },
+  "environment": {
+    "PUBMED_EMAIL": "your_email@example.com",
+    "PORT": "8787"
+  }
+}

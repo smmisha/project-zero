@@ -1,0 +1,8 @@
+# Cloudflare Pages redirects for MedExplainer
+# This file tells Cloudflare how to handle routes
+
+# API routes go to Functions
+/api/*    /functions/api/:splat    200
+
+# All other routes serve index.html (for SPA-like behavior)
+/*    /index.html    200

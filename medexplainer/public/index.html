@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedExplainer - Medical Research Simplified</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary-color: #64748b;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+            --text-light: #64748b;
+            --border-color: #e2e8f0;
+            --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            padding: 30px 0;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow);
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .search-section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: var(--shadow);
+            margin-bottom: 30px;
+        }
+        
+        .search-section h2 {
+            margin-bottom: 20px;
+            color: var(--text-color);
+        }
+        
+        .search-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .form-row .form-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        label {
+            font-weight: 600;
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        select {
+            padding: 12px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            align-self: flex-start;
+        }
+        
+        button:hover {
+            background-color: var(--primary-dark);
+        }
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        button:disabled {
+            background-color: var(--secondary-color);
+            cursor: not-allowed;
+        }
+        
+        .study-types {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 5px;
+        }
+        
+        .study-type-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-color);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        
+        .study-type-option:hover {
+            background: var(--border-color);
+        }
+        
+        .study-type-option input {
+            display: none;
+        }
+        
+        .study-type-option.selected {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        
+        .study-type-option label {
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        
+        .results-section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: var(--shadow);
+        }
+        
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .results-header h2 {
+            color: var(--text-color);
+        }
+        
+        .summary {
+            background: linear-gradient(135deg, #e0f2fe, #f0f9ff);
+            border-left: 4px solid var(--primary-color);
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            font-size: 1.05rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-light);
+        }
+        
+        .spinner {
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            background: #fef2f2;
+            border-left: 4px solid var(--danger-color);
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: var(--danger-color);
+            margin-bottom: 20px;
+        }
+        
+        .study-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        
+        .study-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        .study-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+        
+        .study-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 8px;
+            flex: 1;
+        }
+        
+        .study-title a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        
+        .study-title a:hover {
+            text-decoration: underline;
+        }
+        
+        .study-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-left: 10px;
+        }
+        
+        .badge-high {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .badge-moderate {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .badge-low {
+            background: #fef2f2;
+            color: #991b1b;
+        }
+        
+        .badge-very-low {
+            background: #fee2e2;
+            color: #7f1d1d;
+        }
+        
+        .study-meta {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+        
+        .study-meta span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .study-explanation {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 3px solid var(--primary-color);
+        }
+        
+        .study-explanation h4 {
+            color: var(--primary-color);
+            margin-bottom: 8px;
+        }
+        
+        .key-findings {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .key-findings h4 {
+            color: var(--text-color);
+            margin-bottom: 10px;
+        }
+        
+        .finding-item {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 8px;
+            padding-left: 10px;
+            border-left: 2px solid var(--primary-color);
+        }
+        
+        .finding-item::before {
+            content: "•";
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+        
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-light);
+        }
+        
+        .language-toggle {
+            display: flex;
+            gap: 10px;
+            margin-left: auto;
+        }
+        
+        .lang-btn {
+            padding: 6px 12px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        
+        .lang-btn.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .form-row {
+                flex-direction: column;
+            }
+            
+            .study-header {
+                flex-direction: column;
+            }
+            
+            .study-title {
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>MedExplainer</h1>
+            <p>Medical Research Simplified - Search PubMed and get easy-to-understand explanations</p>
+        </div>
+    </header>
+    
+    <div class="container">
+        <section class="search-section">
+            <h2>Search Medical Research</h2>
+            <form class="search-form" id="searchForm">
+                <div class="form-group">
+                    <label for="query">Search Query</label>
+                    <input type="text" id="query" name="query" 
+                           placeholder="e.g., vitamin D depression, hypertension treatment, diabetes prevention" 
+                           required minlength="3">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="studyTypes">Study Types</label>
+                        <div class="study-types" id="studyTypes">
+                            <label class="study-type-option selected">
+                                <input type="checkbox" name="study_types" value="meta_analysis" checked>
+                                <span>Meta-Analysis</span>
+                            </label>
+                            <label class="study-type-option selected">
+                                <input type="checkbox" name="study_types" value="randomized_controlled_trial" checked>
+                                <span>RCT</span>
+                            </label>
+                            <label class="study-type-option">
+                                <input type="checkbox" name="study_types" value="systematic_review">
+                                <span>Systematic Review</span>
+                            </label>
+                            <label class="study-type-option">
+                                <input type="checkbox" name="study_types" value="cohort_study">
+                                <span>Cohort Study</span>
+                            </label>
+                            <label class="study-type-option">
+                                <input type="checkbox" name="study_types" value="case_control_study">
+                                <span>Case-Control</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="minParticipants">Min Participants</label>
+                        <input type="number" id="minParticipants" name="min_participants" 
+                               placeholder="e.g., 100" min="1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="publicationYear">Publication Year</label>
+                        <input type="number" id="publicationYear" name="publication_year" 
+                               placeholder="e.g., 2023" min="1900" max="2099">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="limit">Max Results</label>
+                        <select id="limit" name="limit">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="20">20</option>
+                            <option value="30">30</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group" style="display: flex; align-items: center; gap: 15px;">
+                    <label>Language:</label>
+                    <div class="language-toggle">
+                        <button type="button" class="lang-btn active" data-lang="en">English</button>
+                        <button type="button" class="lang-btn" data-lang="ru">Русский</button>
+                    </div>
+                    <input type="hidden" id="language" name="language" value="en">
+                </div>
+                
+                <button type="submit" id="searchBtn">
+                    <span id="searchBtnText">Search</span>
+                </button>
+            </form>
+        </section>
+        
+        <section class="results-section" id="resultsSection" style="display: none;">
+            <div class="results-header">
+                <h2>Search Results</h2>
+            </div>
+            
+            <div id="summary" class="summary" style="display: none;"></div>
+            <div id="loading" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Searching PubMed...</p>
+            </div>
+            <div id="error" class="error" style="display: none;"></div>
+            <div id="results" class="results"></div>
+            <div id="noResults" class="no-results" style="display: none;">
+                <p>No studies found. Try a different search query.</p>
+            </div>
+        </section>
+    </div>
+    
+    <footer>
+        <p>MedExplainer - Simplifying Medical Research | Data from <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank">PubMed</a></p>
+    </footer>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Language toggle
+            const langButtons = document.querySelectorAll('.lang-btn');
+            const languageInput = document.getElementById('language');
+            
+            langButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    langButtons.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    languageInput.value = this.dataset.lang;
+                });
+            });
+            
+            // Study type toggle
+            const studyTypeOptions = document.querySelectorAll('.study-type-option');
+            
+            studyTypeOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    const checkbox = this.querySelector('input');
+                    checkbox.checked = !checkbox.checked;
+                    this.classList.toggle('selected');
+                });
+            });
+            
+            // Form submission
+            const searchForm = document.getElementById('searchForm');
+            const searchBtn = document.getElementById('searchBtn');
+            const searchBtnText = document.getElementById('searchBtnText');
+            const resultsSection = document.getElementById('resultsSection');
+            const loadingDiv = document.getElementById('loading');
+            const errorDiv = document.getElementById('error');
+            const resultsDiv = document.getElementById('results');
+            const summaryDiv = document.getElementById('summary');
+            const noResultsDiv = document.getElementById('noResults');
+            
+            searchForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                // Show loading
+                searchBtn.disabled = true;
+                searchBtnText.textContent = 'Searching...';
+                resultsSection.style.display = 'block';
+                loadingDiv.style.display = 'block';
+                errorDiv.style.display = 'none';
+                resultsDiv.innerHTML = '';
+                summaryDiv.style.display = 'none';
+                noResultsDiv.style.display = 'none';
+                
+                // Get form data
+                const formData = new FormData(searchForm);
+                const params = new URLSearchParams();
+                
+                params.append('query', formData.get('query'));
+                
+                // Get selected study types
+                const studyTypes = [];
+                document.querySelectorAll('input[name="study_types"]:checked').forEach(cb => {
+                    studyTypes.push(cb.value);
+                });
+                
+                if (studyTypes.length > 0) {
+                    studyTypes.forEach(st => params.append('study_types', st));
+                }
+                
+                // Add other parameters
+                if (formData.get('min_participants')) {
+                    params.append('min_participants', formData.get('min_participants'));
+                }
+                if (formData.get('publication_year')) {
+                    params.append('publication_year', formData.get('publication_year'));
+                }
+                if (formData.get('limit')) {
+                    params.append('limit', formData.get('limit'));
+                }
+                params.append('language', formData.get('language'));
+                
+                try {
+                    // Use Cloudflare Pages Functions for API
+                    const apiUrl = `/api/search?${params.toString()}`;
+                    const response = await fetch(apiUrl);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Hide loading
+                    loadingDiv.style.display = 'none';
+                    searchBtn.disabled = false;
+                    searchBtnText.textContent = 'Search';
+                    
+                    // Show summary
+                    if (data.summary) {
+                        summaryDiv.textContent = data.summary;
+                        summaryDiv.style.display = 'block';
+                    }
+                    
+                    // Show results
+                    if (data.results && data.results.length > 0) {
+                        displayResults(data.results, data.language || 'en');
+                    } else {
+                        noResultsDiv.style.display = 'block';
+                    }
+                    
+                } catch (error) {
+                    console.error('Error:', error);
+                    loadingDiv.style.display = 'none';
+                    searchBtn.disabled = false;
+                    searchBtnText.textContent = 'Search';
+                    
+                    errorDiv.textContent = `Error: ${error.message}. Please try again.`;
+                    errorDiv.style.display = 'block';
+                }
+            });
+            
+            function displayResults(results, language) {
+                resultsDiv.innerHTML = '';
+                
+                results.forEach(study => {
+                    const card = createStudyCard(study, language);
+                    resultsDiv.appendChild(card);
+                });
+            }
+            
+            function createStudyCard(study, language) {
+                const card = document.createElement('div');
+                card.className = 'study-card';
+                
+                // Confidence badge class
+                let badgeClass = 'badge-low';
+                if (study.confidence === 'high') badgeClass = 'badge-high';
+                else if (study.confidence === 'moderate') badgeClass = 'badge-moderate';
+                else if (study.confidence === 'very_low') badgeClass = 'badge-very-low';
+                
+                // Study type label
+                const studyTypeLabels = {
+                    en: {
+                        'meta_analysis': 'Meta-Analysis',
+                        'systematic_review': 'Systematic Review',
+                        'randomized_controlled_trial': 'RCT',
+                        'cohort_study': 'Cohort Study',
+                        'case_control_study': 'Case-Control',
+                        'cross_sectional_study': 'Cross-Sectional',
+                        'case_report': 'Case Report',
+                        'case_series': 'Case Series',
+                        'animal_study': 'Animal Study',
+                        'in_vitro_study': 'In Vitro',
+                        'review': 'Review',
+                        'other': 'Other'
+                    },
+                    ru: {
+                        'meta_analysis': 'Мета-анализ',
+                        'systematic_review': 'Систематический обзор',
+                        'randomized_controlled_trial': 'РКИ',
+                        'cohort_study': 'Когортное',
+                        'case_control_study': 'Случай-контроль',
+                        'cross_sectional_study': 'Поперечное',
+                        'case_report': 'Описание случая',
+                        'case_series': 'Серия случаев',
+                        'animal_study': 'На животных',
+                        'in_vitro_study': 'In Vitro',
+                        'review': 'Обзор',
+                        'other': 'Другое'
+                    }
+                };
+                
+                const lang = language || 'en';
+                const studyTypeLabel = studyTypeLabels[lang][study.study_type] || study.study_type;
+                
+                // Confidence label
+                const confidenceLabels = {
+                    en: {
+                        'high': 'High Quality',
+                        'moderate': 'Moderate Quality',
+                        'low': 'Low Quality',
+                        'very_low': 'Very Low Quality'
+                    },
+                    ru: {
+                        'high': 'Высокое качество',
+                        'moderate': 'Среднее качество',
+                        'low': 'Низкое качество',
+                        'very_low': 'Очень низкое качество'
+                    }
+                };
+                
+                const confidenceLabel = confidenceLabels[lang][study.confidence] || study.confidence;
+                
+                card.innerHTML = `
+                    <div class="study-header">
+                        <div>
+                            <h3 class="study-title">
+                                <a href="${study.url}" target="_blank">${study.title}</a>
+                                <span class="study-badge ${badgeClass}">${confidenceLabel}</span>
+                                <span class="study-badge" style="background: #e0f2fe; color: #0369a1;">${studyTypeLabel}</span>
+                            </h3>
+                        </div>
+                    </div>
+                    
+                    <div class="study-meta">
+                        ${study.authors && study.authors.length > 0 ? `
+                            <span>👥 ${study.authors.join(', ')}</span>
+                        ` : ''}
+                        ${study.journal ? `
+                            <span>📰 ${study.journal}</span>
+                        ` : ''}
+                        ${study.publication_date ? `
+                            <span>📅 ${study.publication_date}</span>
+                        ` : ''}
+                        ${study.participants ? `
+                            <span>👥 ${study.participants} participants</span>
+                        ` : ''}
+                        ${study.doi ? `
+                            <span>🔗 DOI: ${study.doi}</span>
+                        ` : ''}
+                    </div>
+                    
+                    ${study.simple_explanation ? `
+                        <div class="study-explanation">
+                            <h4>Simple Explanation:</h4>
+                            <p>${study.simple_explanation}</p>
+                        </div>
+                    ` : ''}
+                    
+                    ${study.key_findings && study.key_findings.length > 0 ? `
+                        <div class="key-findings">
+                            <h4>Key Findings:</h4>
+                            ${study.key_findings.map(finding => `
+                                <div class="finding-item">${finding}</div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                `;
+                
+                return card;
+            }
+        });
+    </script>
+</body>
+</html>

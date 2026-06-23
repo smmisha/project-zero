@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: medexplainer
+    runtime: python
+    buildCommand: pip install -r requirements-prod.txt
+    startCommand: python server.py
+    envVars:
+      - key: PUBMED_EMAIL
+        value: your_email@example.com
+      - key: PORT
+        value: "10000"
+      - key: HOST
+        value: "0.0.0.0"
