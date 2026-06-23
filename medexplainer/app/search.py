@@ -104,7 +104,7 @@ class PubMedSearcher:
             # Extract basic info
             medline_citation = article.get("medlinecitation", {})
             article_title = medline_citation.get("articletitle", "")
-            abstract = medline_citation.get("abstract", {}).get("abstracttext", ["]")
+            abstract = medline_citation.get("abstract", {}).get("abstracttext", [""])
             abstract = " ".join(abstract) if isinstance(abstract, list) else abstract
             
             # Extract authors

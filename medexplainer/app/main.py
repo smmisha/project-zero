@@ -190,12 +190,12 @@ async def get_study_details(pmid: str):
     """
     Get detailed information and simplified explanation for a single study by PMID.
     """
+    # Get study details from PubMed
+    study_data = pubmed_searcher.get_study_details(pmid)
+    if not study_data:
+        raise HTTPException(status_code=404, detail="Study not found")
+    
     try:
-        # Get study details from PubMed
-        study_data = pubmed_searcher.get_study_details(pmid)
-        if not study_data:
-            raise HTTPException(status_code=404, detail="Study not found")
-        
         # Generate explanation (default to English)
         simple_explanation = medical_explainer.generate_simple_explanation(
             study_data, 
