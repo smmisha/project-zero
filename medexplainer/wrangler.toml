@@ -1,0 +1,15 @@
+name = "medexplainer"
+main = "server.py"
+compatibility_date = "2024-01-01"
+
+[vars]
+PUBMED_EMAIL = "your_email@example.com"
+
+[[r2_buckets]]
+binding = "PUBLIC_BUCKET"
+bucket_name = "medexplainer-assets"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "medexplainer-db"
+database_id = "your-database-id"
