@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.html
+
+# Node / Cloudflare Worker
+node_modules/
+.wrangler/
+dist/
+.pytest_cache/

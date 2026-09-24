@@ -1,0 +1,18 @@
+# Cloudflare Worker config for git-hotspots.
+# The Python CLI (main.py) and FastAPI app (web_app.py) live alongside this
+# but are unrelated to the Worker build — Cloudflare only uses this file.
+
+name = "project-zero"
+main = "worker/src/index.js"
+compatibility_date = "2026-09-01"
+
+# Optional: set a GitHub token as a secret to raise the API rate limit
+# from 60 req/hr (unauthenticated) to 5000 req/hr:
+#   npx wrangler secret put GITHUB_TOKEN
+[vars]
+MAX_COMMITS_DETAIL = "150"
+MAX_FILES_COMPLEXITY = "60"
+# Outbound requests allowed per analysis. Cloudflare's free plan caps a
+# Worker invocation at 50 subrequests; on a paid plan you can raise this
+# (e.g. "1000") to analyze more commits and files.
+SUBREQUEST_BUDGET = "50"
