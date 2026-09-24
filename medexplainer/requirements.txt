@@ -1,0 +1,27 @@
+# Core dependencies
+fastapi>=0.104.0
+uvicorn>=0.24.0
+requests>=2.31.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+
+# NLP and text processing
+nltk>=3.8.1
+transformers>=4.36.0
+torch>=2.1.0
+
+# Caching
+redis>=5.0.0
+
+# Testing
+pytest>=7.4.0
+httpx>=0.25.0
+pytest-asyncio>=0.21.0
+
+# HTML parsing
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# For PubMed API
+biopython>=1.81.0

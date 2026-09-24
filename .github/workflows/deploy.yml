@@ -1,0 +1,70 @@
+name: Deploy MedExplainer
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      
+      - name: Install dependencies
+        working-directory: medexplainer
+        run: |
+          pip install -r requirements.txt
+          pip install pytest httpx pytest-asyncio
+      
+      - name: Run tests
+        working-directory: medexplainer
+        run: python -m pytest tests/ -v
+
+  deploy-static-to-cloudflare:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy static files to Cloudflare Pages
+        uses: cloudflare/pages-action@1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: "medexplainer"
+          directory: "medexplainer/public"
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-api-to-render:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      
+      - name: Install dependencies
+        working-directory: medexplainer
+        run: pip install -r requirements-prod.txt
+      
+      - name: Deploy API to Render
+        run: |
+          echo "To deploy API to Render, use the Render dashboard:"
+          echo "1. Create a new Web Service"
+          echo "2. Connect to this repository"
+          echo "3. Set Build Command: pip install -r medexplainer/requirements-prod.txt"
+          echo "4. Set Start Command: python medexplainer/server.py"
+          echo "5. Add Environment Variables: PUBMED_EMAIL=your@email.com, PORT=10000"
