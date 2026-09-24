@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from git_hotspots.git_analyzer import (
     get_file_churn,
+    get_commit_count,
     get_authors_per_file,
     get_commit_heatmap,
     get_hourly_distribution,
@@ -28,6 +29,7 @@ from git_hotspots.git_analyzer import (
     get_repo_root,
 )
 from git_hotspots.complexity import scan_repository
+from git_hotspots.filters import filter_paths
 from git_hotspots.hotspots import calculate_hotspots, get_summary_stats, compute_risk_index
 from git_hotspots.reporter import (
     print_header,
@@ -56,6 +58,7 @@ Examples:
   python main.py --days 30 --top 20      # last 30 days, show top 20
   python main.py --html report.html      # also generate HTML report
   python main.py --no-todos              # skip TODO debt analysis (faster)
+  python main.py --exclude tests --exclude "*.min.js"   # ignore paths
   python main.py --json                  # output JSON for scripting
         """,
     )
@@ -104,6 +107,15 @@ Examples:
         help="Minimum churn count to include a file (default: 1)",
     )
     parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="PATTERN",
+        help="Ignore matching paths. Repeatable. A plain name like 'tests' "
+             "drops that directory at any depth; globs like 'docs/*' or "
+             "'*.min.js' match the full path.",
+    )
+    parser.add_argument(
         "--compact",
         action="store_true",
         help="In multi-repo mode, show only the comparison ranking "
@@ -112,12 +124,19 @@ Examples:
     return parser.parse_args()
 
 
+# Progress goes to stderr and only to a terminal, so `--json` output and
+# redirected reports stay clean.
+_SHOW_PROGRESS = sys.stderr.isatty()
+
+
 def _progress(msg: str) -> None:
-    print(f"{DIM}  ⟳  {msg}...{RESET}", end="\r", flush=True)
+    if _SHOW_PROGRESS:
+        print(f"{DIM}  ⟳  {msg}...{RESET}", end="\r", flush=True, file=sys.stderr)
 
 
 def _clear_progress() -> None:
-    print(" " * 60, end="\r")
+    if _SHOW_PROGRESS:
+        print(" " * 100, end="\r", flush=True, file=sys.stderr)
 
 
 def _resolve_git_root(repo_input: str):
@@ -148,7 +167,8 @@ def analyze_repo(git_root: str, args, quiet: bool = False) -> dict:
 
     # Git analysis
     step("Analyzing git history")
-    churn = get_file_churn(git_root, days=args.days)
+    churn = filter_paths(get_file_churn(git_root, days=args.days), args.exclude)
+    commit_count = get_commit_count(git_root, days=args.days)
     authors = get_authors_per_file(git_root, days=args.days)
     heatmap = get_commit_heatmap(git_root, days=args.days)
     hours = get_hourly_distribution(git_root, days=args.days)
@@ -171,7 +191,7 @@ def analyze_repo(git_root: str, args, quiet: bool = False) -> dict:
     # Hotspot calculation
     step("Calculating hotspot scores")
     hotspots = calculate_hotspots(churn, complexity, authors, top_n=args.top)
-    stats = get_summary_stats(hotspots, churn, complexity)
+    stats = get_summary_stats(hotspots, churn, complexity, commit_count)
     risk = compute_risk_index(hotspots)
     if not quiet:
         _clear_progress()

@@ -1,6 +1,6 @@
 """Core hotspot calculation: combines churn and complexity into a risk score."""
 import math
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 def calculate_hotspots(
@@ -83,17 +83,28 @@ def classify_risk(churn_rank: float, complexity_rank: float) -> str:
         return "HEALTHY"
 
 
-def get_summary_stats(hotspots: List[dict], all_churn: Dict[str, int], all_complexity: Dict[str, dict]) -> dict:
-    """Compute summary statistics for the report header."""
+def get_summary_stats(
+    hotspots: List[dict],
+    all_churn: Dict[str, int],
+    all_complexity: Dict[str, dict],
+    commit_count: Optional[int] = None,
+) -> dict:
+    """
+    Compute summary statistics for the report header.
+
+    commit_count is the real number of commits in the window. The sum of
+    churn is file changes, not commits (one commit can touch many files).
+    """
     total_files_tracked = len(all_churn)
-    total_commits_analyzed = sum(all_churn.values())
+    total_file_changes = sum(all_churn.values())
     total_files_complex = len(all_complexity)
 
     hotspot_files = [h for h in hotspots if h["score"] >= 75]
 
     return {
         "total_files_tracked": total_files_tracked,
-        "total_commits_analyzed": total_commits_analyzed,
+        "total_commits_analyzed": commit_count if commit_count is not None else total_file_changes,
+        "total_file_changes": total_file_changes,
         "total_files_complex": total_files_complex,
         "hotspot_count": len(hotspot_files),
         "top_file": hotspots[0]["file"] if hotspots else None,

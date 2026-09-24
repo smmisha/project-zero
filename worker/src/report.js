@@ -70,9 +70,14 @@ export function generateReportHtml({ hotspots, todos, stats, risk, heatmap, hour
     })
     .join("");
 
-  const partialNote = partial
-    ? `<div class="note">Analyzed the ${partial.analyzed} most recent of ${partial.total} commits (capped for API limits). Add a GITHUB_TOKEN secret for full history.</div>`
-    : "";
+  let partialNote = "";
+  if (partial) {
+    const reason = partial.rateLimited
+      ? "GitHub's API rate limit was hit partway through, so churn and bus factor are incomplete. Add a GITHUB_TOKEN secret to raise the limit."
+      : "Only this many fit in the per-request limits (Cloudflare subrequests / MAX_COMMITS_DETAIL). Raise SUBREQUEST_BUDGET on a paid Workers plan for fuller history.";
+    const listed = partial.listTruncated ? `at least ${partial.total}` : partial.total;
+    partialNote = `<div class="note">Churn is based on ${partial.analyzed} of ${listed} commits in this window. ${reason}</div>`;
+  }
 
   return `<!DOCTYPE html>
 <html lang="en"><head>

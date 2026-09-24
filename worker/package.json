@@ -6,9 +6,10 @@
   "description": "git-hotspots as a Cloudflare Worker (GitHub REST API, no git binary)",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "test": "node --test"
   },
   "devDependencies": {
-    "wrangler": "^3.80.0"
+    "wrangler": "^4.137.0"
   }
 }

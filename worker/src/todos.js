@@ -2,7 +2,8 @@
 // Note: no git blame in the Worker, so we report file:line + text but not
 // per-line author/age (that needs git history we don't fetch line-by-line).
 
-const TODO_RE = /\b(TODO|FIXME|HACK|XXX|NOTE|BUG|KLUDGE|OPTIMIZE)\b[\s:]*(.{0,100})/i;
+// Case-sensitive on purpose; NOTE is documentation, not debt.
+const TODO_RE = /\b(TODO|FIXME|HACK|XXX|BUG|KLUDGE|OPTIMIZE)\b[\s:]*(.{0,100})/;
 
 export function findTodos(contents, limitFiles) {
   const results = [];

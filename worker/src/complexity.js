@@ -1,6 +1,7 @@
 // Language-agnostic complexity heuristics — JS port of complexity.py.
-// Computes a 0-100 complexity score from branch density, function count,
-// and max nesting depth. No parsing, just regex heuristics.
+// Computes a raw complexity total from branch count, function count and max
+// nesting depth; normalizeComplexity() then scales it to 0-100 relative to
+// the most complex file. No parsing, just regex heuristics.
 
 const BRANCH_KEYWORDS = {
   python: [/\bif\b/g, /\belif\b/g, /\bfor\b/g, /\bwhile\b/g, /\bexcept\b/g, /\bwith\b/g, /\band\b/g, /\bor\b/g, /\bassert\b/g, /\blambda\b/g],
@@ -87,14 +88,27 @@ export function analyzeContent(path, content) {
   }
 
   const rawComplexity = branchCount + funcCount * 2 + maxDepth * 1.5;
-  const complexityScore = Math.min(100, (rawComplexity / Math.max(loc, 1)) * 100);
+  // Density is kept for reference; ranking uses the total (see complexity.py).
+  const density = Math.min(100, (rawComplexity / Math.max(loc, 1)) * 100);
 
   return {
     loc,
     branch_count: branchCount,
     function_count: funcCount,
     max_depth: maxDepth,
-    complexity_score: Math.round(complexityScore * 100) / 100,
+    raw_complexity: Math.round(rawComplexity * 100) / 100,
+    density: Math.round(density * 100) / 100,
+    complexity_score: 0,
     language: lang,
   };
+}
+
+// Set complexity_score (0-100) relative to the most complex file. Mutates.
+export function normalizeComplexity(results) {
+  const values = Object.values(results);
+  const maxRaw = Math.max(0, ...values.map((m) => m.raw_complexity)) || 1;
+  for (const m of values) {
+    m.complexity_score = Math.round((m.raw_complexity / maxRaw) * 100 * 100) / 100;
+  }
+  return results;
 }

@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from typing import AsyncGenerator
 
@@ -29,18 +30,22 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from git_hotspots.git_analyzer import (
     get_file_churn,
+    get_commit_count,
     get_authors_per_file,
     get_commit_heatmap,
     get_hourly_distribution,
     find_todos_with_blame,
 )
 from git_hotspots.complexity import scan_repository
+from git_hotspots.filters import filter_paths
 from git_hotspots.hotspots import calculate_hotspots, get_summary_stats, compute_risk_index
 from git_hotspots.reporter import generate_html_report
 
 # ── Configuration ──────────────────────────────────────────────────────────
 
 CLONE_DEPTH = 200
+CLONE_TIMEOUT = 90              # seconds
+MAX_REPO_MB = int(os.environ.get("MAX_REPO_MB", "500"))
 ANALYSIS_TIMEOUT = 120          # seconds before giving up
 ALLOWED_HOSTS_RE = re.compile(
     r"^https://(github\.com|gitlab\.com|bitbucket\.org)/[\w.\-]+/[\w.\-]+(\.git)?$"
@@ -59,35 +64,69 @@ def _sanitize_url(url: str) -> str | None:
     return url
 
 
+def _parse_exclude(raw: str) -> list:
+    """Split the comma-separated exclude field into patterns."""
+    return [p.strip() for p in (raw or "").split(",") if p.strip()][:20]
+
+
+def _dir_size(path: str) -> int:
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for name in files:
+            try:
+                total += os.path.getsize(os.path.join(root, name))
+            except OSError:
+                pass
+    return total
+
+
 def _clone(url: str, dest: str) -> tuple[bool, str]:
-    """Shallow-clone a repo. Returns (success, error_message)."""
+    """
+    Shallow-clone a repo. Returns (success, error_message).
+
+    The clone is killed if it runs past CLONE_TIMEOUT or grows beyond
+    MAX_REPO_MB, so one huge repository can't fill the server's disk.
+    """
+    limit = MAX_REPO_MB * 1024 * 1024
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             ["git", "clone", "--depth", str(CLONE_DEPTH), "--", url, dest],
-            capture_output=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=90,
         )
-        if result.returncode != 0:
-            return False, result.stderr.strip()
-        return True, ""
-    except subprocess.TimeoutExpired:
-        return False, "git clone timed out (90 s)"
     except Exception as e:
         return False, str(e)
 
+    deadline = time.monotonic() + CLONE_TIMEOUT
+    while proc.poll() is None:
+        if time.monotonic() > deadline:
+            proc.kill()
+            proc.wait()
+            return False, f"git clone timed out ({CLONE_TIMEOUT} s)"
+        if _dir_size(dest) > limit:
+            proc.kill()
+            proc.wait()
+            return False, f"Repository is larger than {MAX_REPO_MB} MB."
+        time.sleep(0.5)
 
-def _run_analysis(repo_path: str, days: int, top: int) -> dict:
+    if proc.returncode != 0:
+        return False, proc.stderr.read().strip()
+    return True, ""
+
+
+def _run_analysis(repo_path: str, days: int, top: int, exclude=None) -> dict:
     """Run the full pipeline and return a result dict."""
-    churn = get_file_churn(repo_path, days=days)
+    churn = filter_paths(get_file_churn(repo_path, days=days), exclude)
     if not churn:
         return {}
+    commit_count = get_commit_count(repo_path, days=days)
     authors = get_authors_per_file(repo_path, days=days)
     heatmap = get_commit_heatmap(repo_path, days=days)
     hours = get_hourly_distribution(repo_path, days=days)
     complexity = scan_repository(repo_path, tracked_files=list(churn.keys()))
     hotspots = calculate_hotspots(churn, complexity, authors, top_n=top)
-    stats = get_summary_stats(hotspots, churn, complexity)
+    stats = get_summary_stats(hotspots, churn, complexity, commit_count)
     risk = compute_risk_index(hotspots)
     todos = find_todos_with_blame(repo_path, [h["file"] for h in hotspots[:10]])
     return {
@@ -195,6 +234,10 @@ LANDING_HTML = """\
       </div>
     </div>
 
+    <label for="exclude" style="margin-top:16px">Exclude paths (comma-separated, optional)</label>
+    <input type="text" id="exclude" name="exclude"
+           placeholder="tests, docs, *.min.js" autocomplete="off">
+
     <button type="submit" id="btn">Analyze →</button>
   </form>
 
@@ -234,6 +277,7 @@ form.addEventListener('submit', async (e) => {
     url:  document.getElementById('url').value.trim(),
     days: document.getElementById('days').value,
     top:  document.getElementById('top').value,
+    exclude: document.getElementById('exclude').value,
   });
 
   const resp = await fetch('/analyze-stream', { method: 'POST', body });
@@ -292,7 +336,7 @@ async def index():
 # ── Streaming analysis endpoint ────────────────────────────────────────────
 
 async def _analysis_stream(
-    url: str, days: int, top: int
+    url: str, days: int, top: int, exclude: list
 ) -> AsyncGenerator[str, None]:
     """Yield SSE events describing each analysis step, then a redirect."""
 
@@ -324,7 +368,7 @@ async def _analysis_stream(
         try:
             result = await asyncio.wait_for(
                 asyncio.get_event_loop().run_in_executor(
-                    None, _run_analysis, tmp_dir, days, top
+                    None, _run_analysis, tmp_dir, days, top, exclude
                 ),
                 timeout=ANALYSIS_TIMEOUT,
             )
@@ -372,11 +416,12 @@ async def analyze_stream(
     url: str = Form(...),
     days: int = Form(90),
     top: int = Form(20),
+    exclude: str = Form(""),
 ):
     days = max(7, min(days, 730))
     top  = max(5, min(top, 50))
     return StreamingResponse(
-        _analysis_stream(url, days, top),
+        _analysis_stream(url, days, top, _parse_exclude(exclude)),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

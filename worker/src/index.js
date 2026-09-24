@@ -13,8 +13,10 @@ import {
   fetchFileContents,
   buildHeatmaps,
   GitHubError,
+  SubrequestBudget,
 } from "./github.js";
-import { analyzeContent, isSourceFile } from "./complexity.js";
+import { analyzeContent, isSourceFile, normalizeComplexity } from "./complexity.js";
+import { isExcluded, parseExclude } from "./filters.js";
 import { calculateHotspots, getSummaryStats, computeRiskIndex } from "./hotspots.js";
 import { findTodos } from "./todos.js";
 import { generateReportHtml } from "./report.js";
@@ -48,37 +50,50 @@ async function handleAnalyze(request, env) {
   const { owner, repo } = parsed;
   const days = Math.max(7, Math.min(Number(payload.days) || 90, 730));
   const top = Math.max(5, Math.min(Number(payload.top) || 20, 50));
+  const exclude = parseExclude(payload.exclude);
 
   const token = env.GITHUB_TOKEN || null;
   const maxDetail = Number(env.MAX_COMMITS_DETAIL) || 150;
   const maxFiles = Number(env.MAX_FILES_COMPLEXITY) || 60;
+  // Cloudflare allows 50 subrequests per invocation on the free plan.
+  const budget = new SubrequestBudget(Number(env.SUBREQUEST_BUDGET) || 50);
 
   const sinceISO = new Date(Date.now() - days * 86400000).toISOString();
 
   try {
-    const branch = await getDefaultBranch(owner, repo, token);
-    const commits = await listCommits(owner, repo, sinceISO, token);
+    const branch = await getDefaultBranch(owner, repo, token, budget);
+    const { commits, truncated: listTruncated } = await listCommits(owner, repo, sinceISO, token, 8, budget);
     if (commits.length === 0) {
       return json({ error: `No commits found in the last ${days} days.` }, 404);
     }
 
-    const { churn, authors, analyzed, total } = await buildChurn(owner, repo, commits, token, maxDetail);
+    // Split what is left of the budget: ~60% commit details, ~40% file contents.
+    const fileBudget = Math.min(maxFiles, budget.left, Math.max(5, Math.floor(budget.left * 0.4)));
+    const detailBudget = Math.max(0, Math.min(maxDetail, budget.left - fileBudget));
+
+    const built = await buildChurn(owner, repo, commits, token, detailBudget);
+    const { authors, analyzed, total, rateLimited } = built;
+    const churn = {};
+    for (const [path, n] of Object.entries(built.churn)) {
+      if (!isExcluded(path, exclude)) churn[path] = n;
+    }
 
     // Pick the most-churned source files for complexity analysis.
     const sourcePaths = Object.keys(churn)
       .filter(isSourceFile)
       .sort((a, b) => churn[b] - churn[a]);
 
-    const contents = await fetchFileContents(owner, repo, branch, sourcePaths, maxFiles);
+    const contents = await fetchFileContents(owner, repo, branch, sourcePaths, fileBudget);
 
     const complexity = {};
     for (const [path, text] of Object.entries(contents)) {
       const m = analyzeContent(path, text);
       if (m) complexity[path] = m;
     }
+    normalizeComplexity(complexity);
 
     const hotspots = calculateHotspots(churn, complexity, authors, top);
-    const stats = getSummaryStats(hotspots, churn, complexity);
+    const stats = getSummaryStats(hotspots, churn, complexity, commits.length);
     const risk = computeRiskIndex(hotspots);
 
     // TODO scan over the content of the top hotspots we already fetched.
@@ -98,7 +113,7 @@ async function handleAnalyze(request, env) {
       hours,
       repoName: `${owner}/${repo}`,
       days,
-      partial: analyzed < total ? { analyzed, total } : null,
+      partial: analyzed < total || listTruncated ? { analyzed, total, rateLimited, listTruncated } : null,
     });
 
     return html(report);

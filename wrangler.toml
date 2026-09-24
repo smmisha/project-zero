@@ -4,7 +4,7 @@
 
 name = "project-zero"
 main = "worker/src/index.js"
-compatibility_date = "2024-09-23"
+compatibility_date = "2026-09-01"
 
 # Optional: set a GitHub token as a secret to raise the API rate limit
 # from 60 req/hr (unauthenticated) to 5000 req/hr:
@@ -12,3 +12,7 @@ compatibility_date = "2024-09-23"
 [vars]
 MAX_COMMITS_DETAIL = "150"
 MAX_FILES_COMPLEXITY = "60"
+# Outbound requests allowed per analysis. Cloudflare's free plan caps a
+# Worker invocation at 50 subrequests; on a paid plan you can raise this
+# (e.g. "1000") to analyze more commits and files.
+SUBREQUEST_BUDGET = "50"

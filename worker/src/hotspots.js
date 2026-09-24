@@ -40,12 +40,14 @@ export function calculateHotspots(churn, complexity, authors, topN = 20) {
   return hotspots.slice(0, topN);
 }
 
-export function getSummaryStats(hotspots, churn, complexity) {
-  const totalCommits = Object.values(churn).reduce((a, b) => a + b, 0);
+// commitCount is the real number of commits; the churn sum is file changes.
+export function getSummaryStats(hotspots, churn, complexity, commitCount = null) {
+  const fileChanges = Object.values(churn).reduce((a, b) => a + b, 0);
   const hotspotFiles = hotspots.filter((h) => h.score >= 75);
   return {
     total_files_tracked: Object.keys(churn).length,
-    total_commits_analyzed: totalCommits,
+    total_commits_analyzed: commitCount ?? fileChanges,
+    total_file_changes: fileChanges,
     total_files_complex: Object.keys(complexity).length,
     hotspot_count: hotspotFiles.length,
     top_file: hotspots.length ? hotspots[0].file : null,

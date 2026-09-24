@@ -32,27 +32,14 @@ def get_file_churn(repo_path: str, days: int = 90) -> Dict[str, int]:
     return dict(churn)
 
 
-def get_file_authors(repo_path: str, days: int = 90) -> Dict[str, set]:
-    """Return set of unique authors per file."""
+def get_commit_count(repo_path: str, days: int = 90) -> int:
+    """Number of commits in the last N days."""
     since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-    output = _run_git(
-        ["log", f"--since={since}", "--name-only", "--format=%an", "--diff-filter=ACDMR"],
-        repo_path,
-    )
-    authors: Dict[str, set] = defaultdict(set)
-    current_author = None
-    for line in output.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        # Lines not containing path separators and not starting with whitespace
-        # that follow a blank line are author names
-        if current_author is None:
-            current_author = line
-        elif line:
-            authors[line].add(current_author)
-            # Next non-empty line after a file path is a new author
-    return dict(authors)
+    output = _run_git(["rev-list", "--count", f"--since={since}", "HEAD"], repo_path)
+    try:
+        return int(output.strip())
+    except ValueError:
+        return 0
 
 
 def get_authors_per_file(repo_path: str, days: int = 90) -> Dict[str, List[str]]:
@@ -127,9 +114,10 @@ def get_hourly_distribution(repo_path: str, days: int = 90) -> Dict[int, int]:
 
 def find_todos_with_blame(repo_path: str, filepaths: List[str]) -> List[dict]:
     """Find TODO/FIXME/HACK/XXX comments and get their age via git blame."""
+    # Case-sensitive on purpose: "todo" or "bug" in ordinary prose is not a
+    # debt marker. NOTE is excluded because it documents, it doesn't defer.
     todo_pattern = re.compile(
-        r"\b(TODO|FIXME|HACK|XXX|NOTE|BUG|KLUDGE|OPTIMIZE)\b[\s:]*(.{0,100})",
-        re.IGNORECASE,
+        r"\b(TODO|FIXME|HACK|XXX|BUG|KLUDGE|OPTIMIZE)\b[\s:]*(.{0,100})"
     )
     results = []
     for filepath in filepaths:

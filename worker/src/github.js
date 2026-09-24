@@ -1,5 +1,10 @@
 // GitHub REST API client — replaces `git clone` + `git log` + `git blame`.
 //
+// Every outbound fetch is charged to a SubrequestBudget: Cloudflare caps
+// subrequests per invocation (50 on the free plan) and fetches past the cap
+// fail. Running out of budget or hitting GitHub's rate limit is reported back
+// to the caller, never swallowed, so the report can say it is partial.
+//
 // Strategy:
 //   1. Resolve default branch.
 //   2. List commits since N days (cheap: 100/page) → heatmap, hours, dates.
@@ -56,33 +61,60 @@ export class GitHubError extends Error {
   }
 }
 
-// Limited-concurrency map to avoid hammering the API.
-async function pool(items, concurrency, worker) {
+export class SubrequestBudget {
+  constructor(limit) {
+    this.left = limit;
+  }
+  take() {
+    if (this.left <= 0) return false;
+    this.left--;
+    return true;
+  }
+}
+
+// Limited-concurrency map to avoid hammering the API. Returns
+// { results, errors, stopped }: a worker that throws is recorded in errors;
+// if shouldStop(err) is true for that error, no further items are started.
+async function pool(items, concurrency, worker, shouldStop = () => false) {
   const results = [];
+  const errors = [];
   let i = 0;
+  let stopped = false;
   async function run() {
-    while (i < items.length) {
+    while (!stopped && i < items.length) {
       const idx = i++;
       try {
         results[idx] = await worker(items[idx], idx);
-      } catch {
+      } catch (err) {
         results[idx] = null;
+        errors.push(err);
+        if (shouldStop(err)) stopped = true;
       }
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, run));
-  return results;
+  return { results, errors, stopped };
 }
 
-export async function getDefaultBranch(owner, repo, token) {
+const isRateLimit = (err) => err instanceof GitHubError && (err.status === 429 || err.status === 403);
+
+export async function getDefaultBranch(owner, repo, token, budget) {
+  if (budget && !budget.take()) throw new GitHubError("Subrequest budget exhausted.", 503);
   const data = await ghJson(`/repos/${owner}/${repo}`, token);
   return data.default_branch || "main";
 }
 
 // Returns { commits: [{sha, author, dateISO}], heatmap, hours }
-export async function listCommits(owner, repo, sinceISO, token, maxPages = 8) {
+// Pages beyond the budget are not fetched; `truncated` reports that.
+export async function listCommits(owner, repo, sinceISO, token, maxPages = 8, budget = null) {
   const commits = [];
+  let truncated = false;
   for (let page = 1; page <= maxPages; page++) {
+    if (budget && !budget.take()) {
+      truncated = page > 1;
+      if (page === 1) throw new GitHubError("Subrequest budget exhausted.", 503);
+      break;
+    }
     const batch = await ghJson(
       `/repos/${owner}/${repo}/commits?since=${sinceISO}&per_page=100&page=${page}`,
       token
@@ -97,18 +129,22 @@ export async function listCommits(owner, repo, sinceISO, token, maxPages = 8) {
       commits.push({ sha: c.sha, author, dateISO });
     }
     if (batch.length < 100) break;
+    if (page === maxPages) truncated = true;
   }
-  return commits;
+  return { commits, truncated };
 }
 
 // Fetch per-commit file lists to build churn + per-file authors.
-// Returns { churn: {path: count}, authors: {path: Set-as-array} }
+// Returns { churn, authors, analyzed, total, rateLimited }.
+// `analyzed` counts only commits whose detail was actually fetched.
+// Throws if not a single commit could be fetched.
 export async function buildChurn(owner, repo, commits, token, maxDetail = 150) {
   const target = commits.slice(0, maxDetail);
   const churn = {};
   const authors = {};
+  let analyzed = 0;
 
-  await pool(target, 6, async (c) => {
+  const { errors } = await pool(target, 6, async (c) => {
     const detail = await ghJson(`/repos/${owner}/${repo}/commits/${c.sha}`, token);
     const files = detail.files || [];
     for (const f of files) {
@@ -118,15 +154,25 @@ export async function buildChurn(owner, repo, commits, token, maxDetail = 150) {
       if (!authors[path]) authors[path] = new Set();
       authors[path].add(c.author);
     }
-  });
+    analyzed++;
+  }, isRateLimit);
+
+  if (analyzed === 0 && errors.length > 0) throw errors[0];
 
   const authorsArr = {};
   for (const [k, v] of Object.entries(authors)) authorsArr[k] = [...v];
-  return { churn, authors: authorsArr, analyzed: target.length, total: commits.length };
+  return {
+    churn,
+    authors: authorsArr,
+    analyzed,
+    total: commits.length,
+    rateLimited: errors.some(isRateLimit),
+  };
 }
 
 // Fetch raw file contents for the given paths (most-churned first).
 // Returns { path: contentString }. Uses the raw CDN (no API rate limit).
+// A missing file (deleted since it was changed) is simply skipped.
 export async function fetchFileContents(owner, repo, branch, paths, maxFiles = 60) {
   const targets = paths.slice(0, maxFiles);
   const contents = {};

@@ -140,24 +140,39 @@ def analyze_file(filepath: str) -> Optional[Dict]:
     # branches contribute most, then functions and depth
     raw_complexity = branch_count + (func_count * 2) + (max_depth * 1.5)
 
-    # Normalize: complexity per 100 LOC, capped at 100
-    complexity_score = min(100.0, (raw_complexity / max(loc, 1)) * 100)
+    # Density (per 100 LOC) is kept for reference. The ranking uses the total:
+    # a 1,000-line file with the same density as a 50-line one is far harder
+    # to change safely. complexity_score is filled in by normalize_complexity().
+    density = min(100.0, (raw_complexity / max(loc, 1)) * 100)
 
     return {
         "loc": loc,
         "branch_count": branch_count,
         "function_count": func_count,
         "max_depth": max_depth,
-        "complexity_score": round(complexity_score, 2),
+        "raw_complexity": round(raw_complexity, 2),
+        "density": round(density, 2),
+        "complexity_score": 0.0,
         "language": lang,
     }
+
+
+def normalize_complexity(results: Dict[str, Dict]) -> Dict[str, Dict]:
+    """
+    Set complexity_score (0-100) on every file, relative to the most complex
+    file in the set. Mutates and returns `results`.
+    """
+    max_raw = max((m["raw_complexity"] for m in results.values()), default=0) or 1
+    for m in results.values():
+        m["complexity_score"] = round(m["raw_complexity"] / max_raw * 100, 2)
+    return results
 
 
 def scan_repository(repo_path: str, tracked_files: Optional[list] = None) -> Dict[str, Dict]:
     """
     Scan all source files in the repository.
     If tracked_files is provided, only analyze those files.
-    Returns {filepath: metrics_dict}.
+    Returns {filepath: metrics_dict} with complexity_score normalized 0-100.
     """
     results = {}
 
@@ -189,4 +204,4 @@ def scan_repository(repo_path: str, tracked_files: Optional[list] = None) -> Dic
         if metrics:
             results[rel_path] = metrics
 
-    return results
+    return normalize_complexity(results)

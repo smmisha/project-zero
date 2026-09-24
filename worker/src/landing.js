@@ -35,6 +35,8 @@ export const LANDING_HTML = `<!DOCTYPE html>
       <div><label for="days" style="margin-top:16px">Days of history</label><input type="number" id="days" value="90" min="7" max="730"></div>
       <div><label for="top" style="margin-top:16px">Top N files</label><input type="number" id="top" value="20" min="5" max="50"></div>
     </div>
+    <label for="exclude" style="margin-top:16px">Exclude paths (comma-separated, optional)</label>
+    <input type="text" id="exclude" placeholder="tests, docs, *.min.js" autocomplete="off">
     <button type="submit" id="btn">Analyze →</button>
   </form>
   <div id="status"></div>
@@ -57,7 +59,8 @@ f.addEventListener('submit',async e=>{
     const resp=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       url:document.getElementById('url').value.trim(),
       days:+document.getElementById('days').value,
-      top:+document.getElementById('top').value
+      top:+document.getElementById('top').value,
+      exclude:document.getElementById('exclude').value
     })});
     clearInterval(iv);
     if(!resp.ok){const j=await resp.json().catch(()=>({error:'Server error'}));st.style.color='#ef4444';st.textContent='✗  '+(j.error||('HTTP '+resp.status));btn.disabled=false;btn.textContent='Analyze →';fill.style.width='0';return;}
