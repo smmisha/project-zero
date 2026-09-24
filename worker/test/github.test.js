@@ -39,3 +39,32 @@ test("listCommits stops at the subrequest budget and says it truncated", async (
   assert.equal(r.truncated, true);
   assert.equal(budget.left, 0);
 });
+
+test("history follows renames, and a reused old path is a new file", async () => {
+  // newest first, as the GitHub API returns them
+  const cs = [
+    { sha: "c5", author: "dave" },  // new file created at the old path
+    { sha: "c4", author: "carol" }, // mid.js -> new.js + edit
+    { sha: "c3", author: "bob" },   // old.js -> mid.js
+    { sha: "c2", author: "bob" },   // edit old.js
+    { sha: "c1", author: "alice" }, // create old.js
+  ];
+  const files = {
+    c5: [{ filename: "old.js", status: "added" }],
+    c4: [{ filename: "new.js", previous_filename: "mid.js", status: "renamed" }],
+    c3: [{ filename: "mid.js", previous_filename: "old.js", status: "renamed" }],
+    c2: [{ filename: "old.js", status: "modified" }],
+    c1: [{ filename: "old.js", status: "added" }],
+  };
+  // Resolve fetches out of order to prove ordering doesn't depend on timing.
+  const delay = { c1: 5, c2: 1, c3: 4, c4: 0, c5: 3 };
+  globalThis.fetch = async (url) => {
+    const sha = url.split("/").pop();
+    await new Promise((r) => setTimeout(r, delay[sha]));
+    return ok({ files: files[sha] });
+  };
+  const r = await buildChurn("o", "r", cs, null, 10);
+  assert.deepEqual(r.churn, { "new.js": 4, "old.js": 1 });
+  assert.deepEqual(r.authors["new.js"].sort(), ["alice", "bob", "carol"]);
+  assert.deepEqual(r.authors["old.js"], ["dave"]);
+});

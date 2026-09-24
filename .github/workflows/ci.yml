@@ -17,6 +17,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: python -m pytest -q tests
+      - name: Install as a package and run the CLI
+        run: |
+          pip install .
+          git-hotspots --version
+          git hotspots . --days 3650 --json > /dev/null
 
   worker:
     runs-on: ubuntu-latest

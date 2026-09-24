@@ -15,6 +15,7 @@ This is inspired by Adam Tornhill's research in *"Your Code as a Crime Scene"*. 
 
 ## Features
 
+- **Follows renames** — a file's history survives `git mv`, so churn and bus factor aren't split across old paths
 - **Hotspot detection** — ranked list of highest-risk files
 - **Bus factor analysis** — spots knowledge silos (only 1 person understands a file)
 - **TODO debt tracker** — ages every TODO/FIXME/HACK/XXX/BUG via `git blame`; oldest ones are most forgotten
@@ -79,14 +80,23 @@ comparison as structured data. `--html` applies to single-repo mode only.
 Requires **Python 3.10+** and **git** on any OS.
 
 ```bash
+pip install git+https://github.com/smmisha/project-zero
+git-hotspots /your/repo
+```
+
+That puts a `git-hotspots` command on your PATH. Because git runs any
+`git-<name>` program as a subcommand, **`git hotspots` works too**, from
+inside any repository.
+
+To work from a checkout instead (no install; `python main.py` takes the
+same options):
+
+```bash
 git clone https://github.com/smmisha/project-zero
 cd project-zero
 pip install -r requirements.txt   # colorama (colors) + FastAPI (web app only)
 python main.py /your/repo
 ```
-
-The CLI itself needs nothing beyond the standard library; `colorama` just
-adds colors.
 
 ### Windows
 
@@ -94,12 +104,14 @@ In PowerShell (install [Python](https://www.python.org/downloads/) with
 "Add to PATH" checked, and [Git for Windows](https://git-scm.com/download/win)):
 
 ```powershell
-git clone https://github.com/smmisha/project-zero
-cd project-zero
-py -m pip install -r requirements.txt
-py main.py C:\path\to\your\repo --exclude tests --html report.html
+py -m pip install git+https://github.com/smmisha/project-zero
+cd C:\path\to\your\repo
+git hotspots --exclude tests --html report.html
 start report.html
 ```
+
+If PowerShell says `git-hotspots` is not recognized, pip's Scripts folder
+isn't on PATH; `py -m git_hotspots.cli` runs the same thing.
 
 ## Web app
 
@@ -120,7 +132,7 @@ binary) lives in [`worker/`](worker/README.md).
 ## Development
 
 ```bash
-pip install -r requirements.txt -r requirements-dev.txt
+pip install -e ".[web,dev]"
 python -m pytest            # Python tests
 
 cd worker && npm ci && npm test   # Worker tests (Node 22+)

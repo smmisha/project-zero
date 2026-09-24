@@ -140,34 +140,65 @@ export async function listCommits(owner, repo, sinceISO, token, maxPages = 8, bu
 // Throws if not a single commit could be fetched.
 export async function buildChurn(owner, repo, commits, token, maxDetail = 150) {
   const target = commits.slice(0, maxDetail);
-  const churn = {};
-  const authors = {};
-  let analyzed = 0;
+  const fileLists = new Array(target.length).fill(null);
 
-  const { errors } = await pool(target, 6, async (c) => {
+  const { errors } = await pool(target, 6, async (c, idx) => {
     const detail = await ghJson(`/repos/${owner}/${repo}/commits/${c.sha}`, token);
-    const files = detail.files || [];
-    for (const f of files) {
-      const path = f.filename;
-      if (!path) continue;
-      churn[path] = (churn[path] || 0) + 1;
-      if (!authors[path]) authors[path] = new Set();
-      authors[path].add(c.author);
-    }
-    analyzed++;
+    fileLists[idx] = detail.files || [];
   }, isRateLimit);
 
+  const analyzed = fileLists.filter((f) => f !== null).length;
   if (analyzed === 0 && errors.length > 0) throw errors[0];
 
-  const authorsArr = {};
-  for (const [k, v] of Object.entries(authors)) authorsArr[k] = [...v];
+  const { churn, authors } = tallyChurn(target, fileLists);
   return {
     churn,
-    authors: authorsArr,
+    authors,
     analyzed,
     total: commits.length,
     rateLimited: errors.some(isRateLimit),
   };
+}
+
+// Turn per-commit file lists into churn + authors, following renames — same
+// rules as git_analyzer._changes_per_commit. Commits must be newest first
+// (the GitHub API order); fetches finish out of order, so this runs after
+// the pool, never inside it. A null entry is a commit that wasn't fetched.
+export function tallyChurn(commits, fileLists) {
+  const renamedTo = {};
+  const resolve = (path) => {
+    const seen = new Set();
+    while (Object.hasOwn(renamedTo, path) && !seen.has(path)) {
+      seen.add(path);
+      path = renamedTo[path];
+    }
+    return path;
+  };
+
+  const churn = {};
+  const authors = {};
+  commits.forEach((c, idx) => {
+    const files = fileLists[idx];
+    if (!files) return;
+    const touched = new Set();
+    for (const f of files) {
+      if (!f.filename || f.status === "unchanged") continue;
+      const current = resolve(f.filename);
+      if (f.status === "renamed" && f.previous_filename) {
+        renamedTo[f.previous_filename] = current;
+      }
+      touched.add(current);
+    }
+    for (const path of touched) {
+      churn[path] = (churn[path] || 0) + 1;
+      if (!authors[path]) authors[path] = new Set();
+      authors[path].add(c.author);
+    }
+  });
+
+  const authorsArr = {};
+  for (const [k, v] of Object.entries(authors)) authorsArr[k] = [...v];
+  return { churn, authors: authorsArr };
 }
 
 // Fetch raw file contents for the given paths (most-churned first).

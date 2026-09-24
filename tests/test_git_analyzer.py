@@ -57,3 +57,39 @@ def test_todos_ignore_note_and_lowercase_prose(repo):
     assert [(t["kind"], t["line"]) for t in todos] == [("TODO", 2)]
     assert todos[0]["text"] == "remove this hack"
     assert todos[0]["author"] == "Bob"
+
+
+def test_history_follows_renames(tmp_path):
+    """A renamed file keeps its history: churn and authors from before the
+    rename are credited to the current path, not left on the old one."""
+    _git(tmp_path, "init", "-q")
+    body = "".join(f"line_{i} = {i}\n" for i in range(30))
+    (tmp_path / "old.py").write_text(body)
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "create")
+    (tmp_path / "old.py").write_text(body + "x = 1\n")
+    _git(tmp_path, "commit", "-qam", "edit", author="Bob")
+    _git(tmp_path, "mv", "old.py", "mid.py")
+    _git(tmp_path, "commit", "-qm", "rename 1")
+    _git(tmp_path, "mv", "mid.py", "new.py")
+    (tmp_path / "new.py").write_text(body + "x = 2\n")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "rename 2 + edit", author="Carol")
+
+    assert get_file_churn(str(tmp_path)) == {"new.py": 4}
+    assert sorted(get_authors_per_file(str(tmp_path))["new.py"]) == ["Alice", "Bob", "Carol"]
+
+
+def test_path_reused_after_rename_is_a_separate_file(tmp_path):
+    _git(tmp_path, "init", "-q")
+    body = "".join(f"line_{i} = {i}\n" for i in range(30))
+    (tmp_path / "a.py").write_text(body)
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "create a")
+    _git(tmp_path, "mv", "a.py", "b.py")
+    _git(tmp_path, "commit", "-qm", "rename a -> b")
+    (tmp_path / "a.py").write_text("completely = 'different'\n")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "new file at old path")
+
+    assert get_file_churn(str(tmp_path)) == {"b.py": 2, "a.py": 1}
